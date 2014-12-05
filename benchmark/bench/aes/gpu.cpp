@@ -55,32 +55,42 @@ void Gpu::add_options()
 
 bool Gpu::opencl_init()
 {
-	err = clGetPlatformIDs(1, &platformId, nullptr);
+  cl_platform_id platformIds[8];
+	err = clGetPlatformIDs(8, platformIds, nullptr);
 	if (err != CL_SUCCESS)
 	{
 		errMsg = (boost::format("Could not connect to compute device (err %1%)") % perror(err)).str();
 		return false;
 	}
 
-	if (vm->count("use-cpu"))
-	{
-		clog << "Warning: forcing CPU as computing device" << endl;
-		err = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_CPU, 1, &deviceId, nullptr);
-		if (err != CL_SUCCESS)
-		{
-			errMsg = (boost::format("Could not get device id [CPU] (err %1%)") % perror(err)).str();
-			return false;
-		}
-	}
-	else
-	{
-		err = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_GPU, 1, &deviceId, nullptr);
-		if (err != CL_SUCCESS)
-		{
-			errMsg = (boost::format("Could not get device id [GPU] (err %1%)") % perror(err)).str();
-			return false;
-		}
-	}
+  size_t n;
+  for(n=0; n<8; n++)
+  {
+    platformId=platformIds[n];
+    if(vm->count("use-cpu"))
+    {
+      clog << "Warning: forcing CPU as computing device" << endl;
+      err = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_CPU, 1, &deviceId, nullptr);
+      if(err != CL_SUCCESS)
+      {
+        errMsg = (boost::format("For platform %1% could not get device id [CPU] (err %2%)") %n % perror(err)).str();
+        std::cout << errMsg << std::endl;
+      }
+      else break;
+    }
+    else
+    {
+      err = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_GPU, 1, &deviceId, nullptr);
+      if(err != CL_SUCCESS)
+      {
+        errMsg = (boost::format("For platform %1% Could not get device id [GPU] (err %2%)") % n % perror(err)).str();
+        std::cout << errMsg << std::endl;
+      }
+      else break;
+    }
+  }
+  if(n==8)
+    return false;
 
 	context = clCreateContext(0, 1, &deviceId, nullptr, nullptr, &err);
 	if ( ! context || err != CL_SUCCESS)
@@ -267,7 +277,7 @@ bool Gpu::opencl_save_ptx(string &file)
 
 	fill(binaryPtr, binaryPtr + binarySize, '\0');
 
-	err = clGetProgramInfo(program, CL_PROGRAM_BINARIES, 0, &binaryPtr, nullptr);
+  err = clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(binaryPtr), &binaryPtr, nullptr);
 
 	if (err != CL_SUCCESS)
 	{
